@@ -23,7 +23,10 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('./db/User');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'BiMatCuaDoAnLapTrinhMang2026';
+const JWT_SECRET = process.env.JWT_SECRET ;
+if (!process.env.JWT_SECRET) {
+  console.warn('[CANH BAO] Chua dat JWT_SECRET trong .env, dang dung gia tri mac dinh KHONG AN TOAN cho production.');
+}
 
 // ---------- App & Server setup ----------
 const app = express();
@@ -34,7 +37,21 @@ const io = new Server(server, {
 
 app.use(express.static(PUBLIC_DIR));
 app.use(express.json());
+// ---------- HTML Routes ----------
+// Route mặc định: Chuyển hướng sang /login
+app.get('/', (req, res) => {
+  res.redirect('/login');
+});
 
+// Route render trang Login
+app.get('/login', (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'login.html'));
+});
+
+// Route render trang Chat
+app.get('/chat', (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'chat.html'));
+});
 // ---------- File upload (Multer) ----------
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
@@ -57,7 +74,26 @@ const upload = multer({
   }
 });
 
-app.post('/upload', upload.single('file'), (req, res) => {
+// Xac thuc JWT tu header "Authorization: Bearer <token>"
+function verifyAuthHeader(req) {
+  const header = req.headers.authorization || '';
+  const [scheme, token] = header.split(' ');
+  if (scheme !== 'Bearer' || !token) return null;
+  try {
+    return jwt.verify(token, JWT_SECRET); // { id, username, iat, exp }
+  } catch (err) {
+    return null;
+  }
+}
+
+function requireAuth(req, res, next) {
+  const decoded = verifyAuthHeader(req);
+  if (!decoded) return res.status(401).json({ error: 'Chua dang nhap hoac phien da het han' });
+  req.user = decoded;
+  next();
+}
+
+app.post('/upload', requireAuth, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Khong co file' });
   const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(req.file.originalname);
   res.json({
@@ -80,6 +116,12 @@ app.post('/api/register', async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) {
       return res.status(400).json({ error: 'Vui lòng nhập đầy đủ tên và mật khẩu' });
+    }
+    if (String(username).trim().length < 3) {
+      return res.status(400).json({ error: 'Tên đăng nhập phải có ít nhất 3 ký tự' });
+    }
+    if (String(password).length < 6) {
+      return res.status(400).json({ error: 'Mật khẩu phải có ít nhất 6 ký tự' });
     }
 
     const existingUser = await User.findOne({ username });
@@ -205,12 +247,28 @@ function broadcastOnlineUsers(room) {
 }
 
 // ---------- Socket.io ----------
+// Moi ket noi socket bat buoc phai co JWT hop le (lay tu handshake.auth.token).
+// Neu khong co / het han / sai chu ky -> tu choi ket noi ngay tu dau.
+io.use((socket, next) => {
+  const token = socket.handshake.auth && socket.handshake.auth.token;
+  if (!token) return next(new Error('AUTH_REQUIRED'));
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    socket.user = { id: decoded.id, username: decoded.username };
+    next();
+  } catch (err) {
+    next(new Error('AUTH_INVALID'));
+  }
+});
+
 io.on('connection', socket => {
   socket.emit('room-list', getRoomList());
 
-  socket.on('join', async ({ username, room }, ack) => {
+  socket.on('join', async ({ room }, ack) => {
     try {
-      username = String(username || '').trim().slice(0, 30) || `Guest${nanoid(4)}`;
+      // Username khong con lay tu client nua - dung dung username da duoc
+      // xac thuc trong JWT de tranh gia mao ten nguoi khac.
+      const username = socket.user.username;
       room = String(room || 'General').trim().slice(0, 30) || 'General';
 
       // Dam bao phong ton tai trong DB (vd nguoi dung go thang ten phong moi)

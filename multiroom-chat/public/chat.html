@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChatNet — Phòng Chat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Màn hình chat chính (bỏ class hidden) -->
+<div id="chat-screen" class="screen">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <span class="brand-mark small">#</span>
+      <span class="sidebar-title">ChatNet</span>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Kênh</div>
+      <ul id="room-list" class="room-list"></ul>
+      <div class="create-room">
+        <input id="new-room-input" type="text" placeholder="Tên kênh mới" maxlength="30">
+        <button id="create-room-btn" title="Tạo kênh">+</button>
+      </div>
+    </div>
+
+    <div class="sidebar-section grow">
+      <div class="sidebar-label">Đang online — <span id="online-count">0</span></div>
+      <ul id="online-list" class="online-list"></ul>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="me-avatar" id="me-avatar"></div>
+      <div class="me-info">
+        <div id="me-name" class="me-name"></div>
+        <div class="me-status"><span class="dot online"></span>online</div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="chat-main">
+    <header class="chat-header">
+      <div>
+        <h2 id="current-room-name">#general</h2>
+        <p id="current-room-meta" class="chat-header-meta"></p>
+      </div>
+    </header>
+
+    <div id="messages" class="messages"></div>
+
+    <div id="typing-indicator" class="typing-indicator"></div>
+
+    <form id="message-form" class="message-form">
+      <button type="button" id="attach-btn" class="icon-btn" title="Gửi file">📎</button>
+      <input id="file-input" type="file" hidden>
+      <input id="message-input" type="text" placeholder="Nhắn gì đó..." autocomplete="off" maxlength="2000">
+      <button type="submit" class="btn-primary send-btn">Gửi</button>
+    </form>
+    <div id="upload-status" class="upload-status"></div>
+  </main>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="client.js"></script>
+</body>
+</html>

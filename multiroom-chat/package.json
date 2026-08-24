@@ -13,6 +13,8 @@
     "multer": "^2.0.0",
     "nanoid": "^3.3.7",
     "mongoose": "^8.5.1",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2"
   }
 }
