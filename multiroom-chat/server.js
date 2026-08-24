@@ -19,6 +19,12 @@ const UPLOAD_DIR = path.join(PUBLIC_DIR, 'uploads');
 
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const User = require('./db/User');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'BiMatCuaDoAnLapTrinhMang2026';
+
 // ---------- App & Server setup ----------
 const app = express();
 const server = http.createServer(app);
@@ -66,6 +72,50 @@ app.post('/upload', upload.single('file'), (req, res) => {
 app.use((err, req, res, next) => {
   if (err) return res.status(400).json({ error: err.message });
   next();
+});
+
+// ----- API 1: Đăng ký -----
+app.post('/api/register', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Vui lòng nhập đầy đủ tên và mật khẩu' });
+    }
+
+    const existingUser = await User.findOne({ username });
+    if (existingUser) {
+      return res.status(400).json({ error: 'Tên người dùng đã tồn tại' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = await User.create({ username, password: hashedPassword });
+
+    const token = jwt.sign({ id: newUser._id, username: newUser.username }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ ok: true, username: newUser.username, token });
+  } catch (err) {
+    res.status(500).json({ error: 'Lỗi máy chủ khi đăng ký' });
+  }
+});
+
+// ----- API 2: Đăng nhập -----
+app.post('/api/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const user = await User.findOne({ username });
+    if (!user) {
+      return res.status(400).json({ error: 'Tài khoản hoặc mật khẩu không đúng' });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ error: 'Tài khoản hoặc mật khẩu không đúng' });
+    }
+
+    const token = jwt.sign({ id: user._id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ ok: true, username: user.username, token });
+  } catch (err) {
+    res.status(500).json({ error: 'Lỗi máy chủ khi đăng nhập' });
+  }
 });
 
 // ---------- Persistence layer (MongoDB) ----------

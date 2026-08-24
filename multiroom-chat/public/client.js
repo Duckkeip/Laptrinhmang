@@ -151,6 +151,55 @@
     });
   }
 
+
+  let isLoginMode = true;
+
+  // Chuyển Tab Đăng nhập / Đăng ký
+  document.getElementById('tab-login').addEventListener('click', () => {
+    isLoginMode = true;
+    document.getElementById('tab-login').classList.add('active');
+    document.getElementById('tab-register').classList.remove('active');
+    document.getElementById('submit-btn').textContent = 'Đăng nhập & Vào phòng';
+  });
+  
+  document.getElementById('tab-register').addEventListener('click', () => {
+    isLoginMode = false;
+    document.getElementById('tab-register').classList.add('active');
+    document.getElementById('tab-login').classList.remove('active');
+    document.getElementById('submit-btn').textContent = 'Tạo tài khoản mới';
+  });
+  
+  // Xử lý submit Form Auth
+  document.getElementById('auth-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = usernameInput.value.trim();
+    const password = document.getElementById('password-input').value.trim();
+    const room = roomInput.value.trim() || 'General';
+  
+    loginError.textContent = '';
+    const endpoint = isLoginMode ? '/api/login' : '/api/register';
+  
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+  
+      if (!res.ok) throw new Error(data.error);
+  
+      // Lưu token phiên đăng nhập vào LocalStorage
+      localStorage.setItem('chat_token', data.token);
+  
+      // Tiến hành join socket room
+      joinRoom(data.username, room);
+  
+    } catch (err) {
+      loginError.textContent = err.message;
+    }
+  });
+
   // ---------- Join flow ----------
   function joinRoom(username, room) {
     socket.emit('join', { username, room }, res => {

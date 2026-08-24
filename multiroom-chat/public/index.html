@@ -7,34 +7,105 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="login.css">
+
 </head>
 <body>
 
-<!-- ===== Man hinh dang nhap ===== -->
-<div id="login-screen" class="screen">
-  <div class="login-card">
-    <div class="brand">
-      <span class="brand-mark">#</span>
-      <div>
-        <h1>ChatNet</h1>
-        <p class="brand-sub">multi-room · realtime · socket.io</p>
+  <!-- =========================
+       Màn hình Auth
+  ========================= -->
+  <div id="login-screen" class="auth-card">
+
+    <div class="auth-logo">
+      <div class="auth-logo-icon">
+        <span>💬</span>
       </div>
     </div>
-
-    <label class="field">
-      <span>Tên hiển thị</span>
-      <input id="username-input" type="text" placeholder="vd: minh_dev" maxlength="30" autocomplete="off">
-    </label>
-
-    <label class="field">
-      <span>Phòng chat</span>
-      <input id="room-input" type="text" placeholder="General" maxlength="30" autocomplete="off">
-    </label>
-
-    <button id="join-btn" class="btn-primary">Kết nối</button>
-    <p id="login-error" class="error-text"></p>
+  
+    <div class="auth-header">
+      <h1>Multiroom</h1>
+      <p>Chat cùng mọi người, ở mọi phòng.</p>
+    </div>
+  
+    <div class="auth-tabs">
+      <button id="tab-login" class="active" type="button">
+        Đăng nhập
+      </button>
+  
+      <button id="tab-register" type="button">
+        Đăng ký
+      </button>
+    </div>
+  
+    <form id="auth-form">
+  
+      <div class="auth-field">
+        <label for="username-input">Tên đăng nhập</label>
+  
+        <div class="input-wrapper">
+          <span class="input-icon">👤</span>
+  
+          <input
+            type="text"
+            id="username-input"
+            placeholder="Nhập tên đăng nhập"
+            autocomplete="username"
+            required
+          />
+        </div>
+      </div>
+  
+      <div class="auth-field">
+        <label for="password-input">Mật khẩu</label>
+  
+        <div class="input-wrapper">
+          <span class="input-icon">🔒</span>
+  
+          <input
+            type="password"
+            id="password-input"
+            placeholder="Nhập mật khẩu"
+            autocomplete="current-password"
+            required
+          />
+        </div>
+      </div>
+  
+      <div class="auth-field">
+        <div class="label-row">
+          <label for="room-input">Phòng chat</label>
+          <span class="optional">Không bắt buộc</span>
+        </div>
+  
+        <div class="input-wrapper">
+          <span class="input-icon">#</span>
+  
+          <input
+            type="text"
+            id="room-input"
+            placeholder="General"
+          />
+        </div>
+      </div>
+  
+      <button type="submit" id="submit-btn">
+        <span>Đăng nhập</span>
+        <span class="submit-arrow">→</span>
+      </button>
+  
+    </form>
+  
+    <div id="login-error" class="error-msg"></div>
+  
+    <div class="auth-footer">
+      <span class="footer-line"></span>
+      <span>Multiroom Chat</span>
+      <span class="footer-line"></span>
+    </div>
+  
   </div>
-</div>
+  
 
 <!-- ===== Man hinh chat chinh ===== -->
 <div id="chat-screen" class="screen hidden">

@@ -1,0 +1,430 @@
+/* =========================================
+   MULTIROOM CHAT - LOGIN
+========================================= */
+
+#login-screen {
+  width: min(1130px, calc(100% - 32px));
+
+  margin: 50px auto;
+
+  padding: 42px 38px 30px;
+
+  background: #ffffff;
+
+  border: 1px solid #e1e6ef;
+
+  border-radius: 24px;
+
+  box-shadow:
+    0 24px 60px rgba(27, 35, 51, 0.10),
+    0 4px 12px rgba(27, 35, 51, 0.04);
+
+  text-align: center;
+}
+
+
+/* =========================================
+   LOGO
+========================================= */
+
+.auth-logo {
+  display: flex;
+
+  justify-content: center;
+
+  margin-bottom: 20px;
+}
+
+.auth-logo-icon {
+  width: 64px;
+  height: 64px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 18px;
+
+  background: #eef1ff;
+
+  color: #3454d1;
+
+  box-shadow:
+    0 8px 20px rgba(52, 84, 209, 0.12);
+}
+
+.auth-logo-icon span {
+  font-size: 29px;
+}
+
+
+/* =========================================
+   HEADER
+========================================= */
+
+.auth-header h1 {
+  margin: 0;
+
+  font-family: var(--font-display);
+
+  font-size: 30px;
+
+  font-weight: 700;
+
+  letter-spacing: -0.04em;
+
+  color: #182033;
+}
+
+.auth-header p {
+  margin: 8px 0 0;
+
+  color: #8b95a7;
+
+  font-size: 13px;
+
+  line-height: 1.5;
+}
+
+
+/* =========================================
+   TABS
+========================================= */
+
+.auth-tabs {
+  display: flex;
+
+  margin-top: 32px;
+  margin-bottom: 26px;
+
+  border-bottom: 1px solid #e4e8ef;
+}
+
+.auth-tabs button {
+  position: relative;
+
+  flex: 1;
+
+  padding: 12px 0;
+
+  border: none;
+
+  background: transparent;
+
+  color: #98a1b1;
+
+  font-family: var(--font-body);
+
+  font-size: 14px;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition: color 0.2s ease;
+}
+
+.auth-tabs button:hover {
+  color: #566174;
+}
+
+.auth-tabs button.active {
+  color: #3454d1;
+}
+
+.auth-tabs button.active::after {
+  content: "";
+
+  position: absolute;
+
+  left: 22%;
+  right: 22%;
+
+  bottom: -1px;
+
+  height: 3px;
+
+  border-radius: 10px;
+
+  background: #3454d1;
+}
+
+
+/* =========================================
+   FORM
+========================================= */
+
+#auth-form {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 17px;
+
+  text-align: left;
+}
+
+
+/* =========================================
+   FIELD
+========================================= */
+
+.auth-field {
+  width: 100%;
+}
+
+.auth-field label {
+  display: block;
+
+  margin-bottom: 7px;
+
+  color: #4f596b;
+
+  font-size: 13px;
+
+  font-weight: 600;
+}
+
+.label-row {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  margin-bottom: 7px;
+}
+
+.label-row label {
+  margin-bottom: 0;
+}
+
+.optional {
+  color: #a0a8b6;
+
+  font-size: 11px;
+
+  font-weight: 400;
+}
+
+
+/* =========================================
+   INPUT
+========================================= */
+
+.input-wrapper {
+  position: relative;
+
+  width: 100%;
+}
+
+.input-icon {
+  position: absolute;
+
+  left: 14px;
+  top: 50%;
+
+  transform: translateY(-50%);
+
+  width: 20px;
+
+  color: #9aa4b4;
+
+  font-size: 15px;
+
+  text-align: center;
+
+  pointer-events: none;
+}
+
+.input-wrapper input {
+  width: 100%;
+
+  height: 50px;
+
+  padding: 0 14px 0 43px;
+
+  box-sizing: border-box;
+
+  border: 1px solid #dce2eb;
+
+  border-radius: 10px;
+
+  background: #f7f8fa;
+
+  color: #1b2333;
+
+  font-family: var(--font-body);
+
+  font-size: 14px;
+
+  outline: none;
+
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.input-wrapper input::placeholder {
+  color: #a1a9b7;
+}
+
+.input-wrapper input:hover {
+  border-color: #cbd2de;
+
+  background: #ffffff;
+}
+
+.input-wrapper input:focus {
+  border-color: #3454d1;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 0 0 4px rgba(52, 84, 209, 0.09);
+}
+
+
+/* =========================================
+   SUBMIT
+========================================= */
+
+#submit-btn {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  gap: 10px;
+
+  width: 100%;
+
+  height: 51px;
+
+  margin-top: 3px;
+
+  border: none;
+
+  border-radius: 10px;
+
+  background: #3454d1;
+
+  color: white;
+
+  font-family: var(--font-body);
+
+  font-size: 14px;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  box-shadow:
+    0 8px 18px rgba(52, 84, 209, 0.20);
+
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+#submit-btn:hover {
+  background: #2f4cc1;
+
+  transform: translateY(-1px);
+
+  box-shadow:
+    0 11px 24px rgba(52, 84, 209, 0.25);
+}
+
+#submit-btn:active {
+  transform: translateY(0);
+}
+
+.submit-arrow {
+  font-size: 18px;
+
+  line-height: 1;
+}
+
+
+/* =========================================
+   ERROR
+========================================= */
+
+.error-msg {
+  min-height: 18px;
+
+  margin-top: 13px;
+
+  color: #d14343;
+
+  font-size: 12px;
+
+  text-align: left;
+}
+
+
+/* =========================================
+   FOOTER
+========================================= */
+
+.auth-footer {
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  margin-top: 25px;
+
+  color: #a0a8b6;
+
+  font-family: var(--font-mono);
+
+  font-size: 10px;
+}
+
+.footer-line {
+  flex: 1;
+
+  height: 1px;
+
+  background: #e8ebf0;
+}
+
+
+/* =========================================
+   MOBILE
+========================================= */
+
+@media (max-width: 480px) {
+
+  #login-screen {
+    width: calc(100% - 24px);
+
+    margin: 25px auto;
+
+    padding: 32px 22px 25px;
+
+    border-radius: 20px;
+  }
+
+  .auth-header h1 {
+    font-size: 26px;
+  }
+
+  .auth-logo-icon {
+    width: 58px;
+    height: 58px;
+  }
+}
+#login-screen {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+}
