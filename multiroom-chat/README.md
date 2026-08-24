@@ -104,7 +104,8 @@ có MongoDB nào đang chạy ở địa chỉ trong `MONGODB_URI` — kiểm tr
 | `chat-message`     | server → client | tin nhắn đầy đủ (text hoặc file)              | Broadcast tin nhắn tới cả phòng |
 | `system-message`   | server → client | `{ type, text, time }`                        | Thông báo vào/rời phòng |
 
-## 5. Hướng mở rộng cho báo cáo
+## 5. Hướng mở rộng
+
 
 - Thêm xác thực (JWT) thay vì chỉ nhập tên hiển thị.
 - Dùng Redis Adapter cho Socket.io khi chạy nhiều server (load balancing, scale ngang) —
