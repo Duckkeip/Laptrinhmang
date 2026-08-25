@@ -14,6 +14,35 @@ const Message = require('./db/Message');
 
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/multiroom-chat';
+
+// ---------- AI Bot config ----------
+// URL cua service inference (xem ai_service/app.py) - noi model da finetune dang chay
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+const AI_BOT_NAME = 'AI Bot';
+// Nhan biet lenh goi AI: "/ai <cau hoi>" hoac chua "@AI <cau hoi>" o bat ky dau trong tin nhan
+function extractAIPrompt(text) {
+  const trimmed = text.trim();
+  if (trimmed.toLowerCase().startsWith('/ai ')) {
+    return trimmed.slice(4).trim();
+  }
+  const mentionMatch = trimmed.match(/@AI\b[:,]?\s*(.*)/i);
+  if (mentionMatch) {
+    return (mentionMatch[1] || '').trim() || trimmed.replace(/@AI\b[:,]?/i, '').trim();
+  }
+  return null;
+}
+
+// Goi service inference (model da finetune) va tra ve cau tra loi dang text
+async function askAIBot(prompt, room, username) {
+  const res = await fetch(`${AI_SERVICE_URL}/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, room, username })
+  });
+  if (!res.ok) throw new Error(`AI service tra ve loi ${res.status}`);
+  const data = await res.json();
+  return data.reply || 'Xin loi, minh chua nghi ra cau tra loi.';
+}
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const UPLOAD_DIR = path.join(PUBLIC_DIR, 'uploads');
 
@@ -318,6 +347,33 @@ io.on('connection', socket => {
       });
 
       io.to(user.room).emit('chat-message', saved);
+
+      // Neu tin nhan la lenh goi AI Bot (/ai ... hoac @AI ...), goi model
+      // da finetune de sinh cau tra loi, roi phat no nhu 1 tin nhan binh
+      // thuong tu user "AI Bot" trong cung phong.
+      const aiPrompt = extractAIPrompt(saved.text);
+      if (aiPrompt) {
+        io.to(user.room).emit('typing', { username: AI_BOT_NAME, isTyping: true });
+        try {
+          const reply = await askAIBot(aiPrompt, user.room, user.username);
+          const aiSaved = await appendHistory(user.room, {
+            type: 'text',
+            username: AI_BOT_NAME,
+            text: reply.slice(0, 2000),
+            time: Date.now()
+          });
+          io.to(user.room).emit('chat-message', aiSaved);
+        } catch (err) {
+          console.error('Loi khi goi AI service:', err.message);
+          io.to(user.room).emit('system-message', {
+            type: 'error',
+            text: 'AI Bot dang gap su co, thu lai sau.',
+            time: Date.now()
+          });
+        } finally {
+          io.to(user.room).emit('typing', { username: AI_BOT_NAME, isTyping: false });
+        }
+      }
     } catch (err) {
       console.error('Loi khi luu tin nhan:', err);
     }
