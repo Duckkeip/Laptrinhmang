@@ -1,7 +1,10 @@
 fastapi
 uvicorn
 torch
-transformers
-peft
-bitsandbytes
-accelerate
+requests
+transformers==4.46.3
+huggingface_hub==0.25.2
+peft==0.13.2
+bitsandbytes>=0.46.1
+accelerate==1.0.1
+sentencepiece
