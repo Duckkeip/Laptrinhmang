@@ -146,8 +146,9 @@
 
     function appendChatMessage(msg) {
       const isMe = msg.username === me.username;
+      const isAIBot = msg.username === 'AI Bot';
       const wrap = document.createElement('div');
-      wrap.className = 'msg' + (isMe ? ' me' : '');
+      wrap.className = 'msg' + (isMe ? ' me' : '') + (isAIBot ? ' ai-bot' : '');
 
       const avatar = document.createElement('div');
       avatar.className = 'msg-avatar';
@@ -350,7 +351,8 @@
 
     socket.on('typing', ({ username, isTyping }) => {
       if (username === me.username) return;
-      typingIndicator.textContent = isTyping ? `${username} đang nhập...` : '';
+      const label = username === 'AI Bot' ? '🤖 AI Bot đang trả lời...' : `${username} đang nhập...`;
+      typingIndicator.textContent = isTyping ? label : '';
     });
 
     socket.on('connect_error', (err) => {
