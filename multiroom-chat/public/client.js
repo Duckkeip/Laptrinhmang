@@ -128,6 +128,17 @@
     const fileInput = document.getElementById('file-input');
     const uploadStatus = document.getElementById('upload-status');
 
+    // Lay gioi han dung luong file tu server (tranh go cung 1 con so o 2 noi)
+    let maxFileSizeMB = 15; // gia tri du phong, se duoc ghi de ngay khi fetch xong
+    fetch('/api/config')
+      .then(r => r.json())
+      .then(cfg => {
+        maxFileSizeMB = cfg.maxFileSizeMB;
+        uploadStatus.textContent = `Có thể gửi file tối đa ${maxFileSizeMB}MB`;
+        setTimeout(() => { if (uploadStatus.textContent.startsWith('Có thể gửi')) uploadStatus.textContent = ''; }, 4000);
+      })
+      .catch(() => {});
+
     function scrollToBottom() {
       messagesEl.scrollTop = messagesEl.scrollHeight;
     }
@@ -149,6 +160,7 @@
       const isAIBot = msg.username === 'AI Bot';
       const wrap = document.createElement('div');
       wrap.className = 'msg' + (isMe ? ' me' : '') + (isAIBot ? ' ai-bot' : '');
+      if (msg.id) wrap.dataset.id = msg.id;
 
       const avatar = document.createElement('div');
       avatar.className = 'msg-avatar';
@@ -167,6 +179,22 @@
       time.textContent = formatTime(msg.time);
       meta.appendChild(uname);
       meta.appendChild(time);
+
+      // Chi cho phep xoa tin nhan CUA CHINH MINH (khong xoa duoc tin AI Bot/nguoi khac)
+      if (isMe && msg.id) {
+        const delBtn = document.createElement('button');
+        delBtn.className = 'msg-delete-btn';
+        delBtn.title = 'Xóa tin nhắn';
+        delBtn.type = 'button';
+        delBtn.textContent = '🗑';
+        delBtn.addEventListener('click', () => {
+          if (!confirm('Xóa tin nhắn này?')) return;
+          socket.emit('delete-message', msg.id, res => {
+            if (!res || !res.ok) alert(res?.error || 'Không thể xóa tin nhắn');
+          });
+        });
+        meta.appendChild(delBtn);
+      }
 
       body.appendChild(meta);
 
@@ -242,6 +270,10 @@
         const li = document.createElement('li');
         li.innerHTML = `<span class="dot online"></span><span></span>`;
         li.querySelector('span:last-child').textContent = name;
+        if (name !== me.username) {
+          li.title = `Nhắn riêng cho ${name}`;
+          li.addEventListener('click', () => openDM(name));
+        }
         onlineListEl.appendChild(li);
       });
     }
@@ -318,7 +350,16 @@
       const file = fileInput.files[0];
       if (!file) return;
 
-      uploadStatus.textContent = `Đang tải lên ${file.name}...`;
+      // Kiem tra kich thuoc NGAY TREN TRINH DUYET truoc khi upload - phan hoi
+      // tuc thi, khong can cho round-trip mang roi moi biet file qua lon.
+      const maxBytes = maxFileSizeMB * 1024 * 1024;
+      if (file.size > maxBytes) {
+        uploadStatus.textContent = `File "${file.name}" (${formatSize(file.size)}) vượt quá giới hạn ${maxFileSizeMB}MB. Vui lòng chọn file nhỏ hơn.`;
+        fileInput.value = '';
+        return;
+      }
+
+      uploadStatus.textContent = `Đang tải lên ${file.name} (${formatSize(file.size)})...`;
 
       const formData = new FormData();
       formData.append('file', file);
@@ -349,6 +390,11 @@
     socket.on('chat-message', appendChatMessage);
     socket.on('system-message', msg => appendSystemMessage(msg.text));
 
+    socket.on('message-deleted', ({ id }) => {
+      const el = messagesEl.querySelector(`[data-id="${id}"]`);
+      if (el) el.remove();
+    });
+
     socket.on('typing', ({ username, isTyping }) => {
       if (username === me.username) return;
       const label = username === 'AI Bot' ? '🤖 AI Bot đang trả lời...' : `${username} đang nhập...`;
@@ -360,6 +406,132 @@
         localStorage.clear();
         window.location.href = '/login';
       }
+    });
+
+    // ---------- Direct Message (nhan tin rieng 1-1) ----------
+    const dmModal = document.getElementById('dm-modal');
+    const dmMessagesEl = document.getElementById('dm-messages');
+    const dmForm = document.getElementById('dm-form');
+    const dmInput = document.getElementById('dm-input');
+    const dmUsernameEl = document.getElementById('dm-username');
+    const dmAvatarEl = document.getElementById('dm-avatar');
+    const dmOnlineStatusEl = document.getElementById('dm-online-status');
+    const dmCloseBtn = document.getElementById('dm-close-btn');
+    const dmToast = document.getElementById('dm-toast');
+
+    let currentDMUser = null;
+
+    function appendDMMessage(msg) {
+      const isMe = msg.from === me.username;
+      const wrap = document.createElement('div');
+      wrap.className = 'msg' + (isMe ? ' me' : '');
+      if (msg._id || msg.id) wrap.dataset.id = msg._id || msg.id;
+
+      const avatar = document.createElement('div');
+      avatar.className = 'msg-avatar';
+      avatar.textContent = initials(msg.from);
+
+      const body = document.createElement('div');
+      body.className = 'msg-body';
+
+      const bubble = document.createElement('div');
+      bubble.className = 'msg-bubble';
+
+      if (msg.type === 'file') {
+        if (msg.isImage) {
+          const img = document.createElement('img');
+          img.src = msg.url;
+          img.className = 'msg-image';
+          bubble.appendChild(img);
+        } else {
+          const link = document.createElement('a');
+          link.href = msg.url;
+          link.target = '_blank';
+          link.textContent = `📎 ${msg.name}`;
+          bubble.appendChild(link);
+        }
+      } else {
+        bubble.textContent = msg.text;
+      }
+
+      body.appendChild(bubble);
+
+      if (isMe && (msg._id || msg.id)) {
+        const delBtn = document.createElement('button');
+        delBtn.className = 'msg-delete-btn dm-delete-btn';
+        delBtn.title = 'Xóa tin nhắn';
+        delBtn.type = 'button';
+        delBtn.textContent = '🗑';
+        delBtn.addEventListener('click', () => {
+          if (!confirm('Xóa tin nhắn này?')) return;
+          socket.emit('delete-dm-message', msg._id || msg.id, res => {
+            if (!res || !res.ok) alert(res?.error || 'Không thể xóa tin nhắn');
+          });
+        });
+        body.appendChild(delBtn);
+      }
+
+      wrap.appendChild(avatar);
+      wrap.appendChild(body);
+      dmMessagesEl.appendChild(wrap);
+      dmMessagesEl.scrollTop = dmMessagesEl.scrollHeight;
+    }
+
+    function openDM(username) {
+      currentDMUser = username;
+      dmUsernameEl.textContent = username;
+      dmAvatarEl.textContent = initials(username);
+      dmMessagesEl.innerHTML = '';
+      dmModal.classList.remove('hidden');
+
+      socket.emit('join-dm', username, res => {
+        if (!res || !res.ok) {
+          alert(res?.error || 'Không thể mở đoạn chat riêng');
+          dmModal.classList.add('hidden');
+          return;
+        }
+        dmOnlineStatusEl.textContent = res.online ? 'Đang online' : 'Offline';
+        dmOnlineStatusEl.classList.toggle('online', res.online);
+        res.history.forEach(appendDMMessage);
+        dmInput.focus();
+      });
+    }
+
+    dmCloseBtn.addEventListener('click', () => {
+      dmModal.classList.add('hidden');
+      currentDMUser = null;
+    });
+
+    dmForm.addEventListener('submit', e => {
+      e.preventDefault();
+      const text = dmInput.value.trim();
+      if (!text || !currentDMUser) return;
+      socket.emit('dm-message', { to: currentDMUser, text, type: 'text' });
+      dmInput.value = '';
+    });
+
+    socket.on('dm-message', msg => {
+      // Chi ve vao khung chat neu dang mo DUNG cuoc tro chuyen nay
+      const otherParty = msg.from === me.username ? msg.to : msg.from;
+      if (currentDMUser === otherParty) {
+        appendDMMessage(msg);
+      }
+    });
+
+    socket.on('dm-message-deleted', ({ id }) => {
+      const el = dmMessagesEl.querySelector(`[data-id="${id}"]`);
+      if (el) el.remove();
+    });
+
+    let dmToastTimer = null;
+    socket.on('dm-notify', ({ from, text }) => {
+      // Neu dang mo dung DM voi nguoi nay thi khong can toast, tin da hien roi
+      if (currentDMUser === from) return;
+      dmToast.innerHTML = `<strong>${from}</strong>: ${text}`;
+      dmToast.classList.remove('hidden');
+      dmToast.onclick = () => { openDM(from); dmToast.classList.add('hidden'); };
+      clearTimeout(dmToastTimer);
+      dmToastTimer = setTimeout(() => dmToast.classList.add('hidden'), 5000);
     });
   }
 })();

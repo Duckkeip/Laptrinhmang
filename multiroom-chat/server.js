@@ -11,6 +11,7 @@ const { nanoid } = require('nanoid');
 const { connectDB } = require('./db/connection');
 const Room = require('./db/Room');
 const Message = require('./db/Message');
+const DirectMessage = require('./db/DirectMessage');
 
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/multiroom-chat';
@@ -44,13 +45,12 @@ async function askAIBot(prompt, room, username) {
   return data.reply || 'Xin loi, minh chua nghi ra cau tra loi.';
 }
 const PUBLIC_DIR = path.join(__dirname, 'public');
-const UPLOAD_DIR = path.join(PUBLIC_DIR, 'uploads');
-
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('./db/User');
+const mongoose = require('mongoose');
+const { GridFSBucket } = require('mongodb');
 
 const JWT_SECRET = process.env.JWT_SECRET ;
 if (!process.env.JWT_SECRET) {
@@ -81,27 +81,57 @@ app.get('/login', (req, res) => {
 app.get('/chat', (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'chat.html'));
 });
-// ---------- File upload (Multer) ----------
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const safeName = `${Date.now()}-${nanoid(8)}${ext}`;
-    cb(null, safeName);
-  }
+
+// Cho client biet cac gioi han hien hanh (vd dung luong file toi da), tranh
+// phai go cung 1 con so o ca server lan client de gay lech nhau ve sau.
+app.get('/api/config', (req, res) => {
+  res.json({ maxFileSizeMB: MAX_FILE_SIZE_MB });
 });
+// ---------- File upload (Multer + GridFS) ----------
+// Doc file vao bo nho (buffer) truoc, roi ghi thang vao MongoDB qua GridFS,
+// khong luu ra o dia server nua.
+const MAX_FILE_SIZE_MB = 15;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const ALLOWED_FILE_PATTERN = /\.(jpg|jpeg|png|gif|webp|pdf|docx?|xlsx?|pptx?|txt|zip|mp4|mov|webm)$/i;
+
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
-  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB
+  limits: { fileSize: MAX_FILE_SIZE_BYTES },
   fileFilter: (req, file, cb) => {
-    const allowed = /\.(jpg|jpeg|png|gif|webp|pdf|docx?|xlsx?|pptx?|txt|zip)$/i;
-    if (!allowed.test(file.originalname)) {
+    if (!ALLOWED_FILE_PATTERN.test(file.originalname)) {
       return cb(new Error('Dinh dang file khong duoc ho tro'));
     }
     cb(null, true);
   }
 });
+
+// GridFSBucket duoc khoi tao SAU KHI ket noi MongoDB thanh cong (xem cuoi file,
+// cho nam trong ham start()). Bucket "uploads" se tao 2 collection trong Mongo:
+// uploads.files (metadata) va uploads.chunks (du lieu nhi phan chia nho).
+let gridFSBucket = null;
+
+function getGridFSBucket() {
+  if (!gridFSBucket) {
+    gridFSBucket = new GridFSBucket(mongoose.connection.db, { bucketName: 'uploads' });
+  }
+  return gridFSBucket;
+}
+
+// Xoa 1 file trong GridFS dua vao url dang "/files/<id>" da luu trong tin nhan.
+// Dung khi xoa tin nhan loai 'file' de khong de rac trong uploads.files/uploads.chunks.
+async function deleteFileFromUrl(url) {
+  const match = String(url || '').match(/\/files\/([a-f0-9]{24})$/i);
+  if (!match) return;
+  try {
+    const fileId = new mongoose.Types.ObjectId(match[1]);
+    await getGridFSBucket().delete(fileId);
+  } catch (err) {
+    // File co the da bi xoa truoc do hoac khong ton tai - khong can chan luong xoa tin nhan
+    console.warn('Khong xoa duoc file GridFS (co the da khong con ton tai):', err.message);
+  }
+}
 
 // Xac thuc JWT tu header "Authorization: Bearer <token>"
 function verifyAuthHeader(req) {
@@ -122,15 +152,73 @@ function requireAuth(req, res, next) {
   next();
 }
 
-app.post('/upload', requireAuth, upload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'Khong co file' });
-  const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(req.file.originalname);
-  res.json({
-    url: `/uploads/${req.file.filename}`,
-    name: req.file.originalname,
-    size: req.file.size,
-    isImage
+// Middleware upload rieng, bat loi multer (vd vuot gioi han dung luong) va
+// tra ve JSON ro rang thay vi de Express hien trang loi HTML mac dinh.
+function handleUpload(req, res, next) {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({
+          error: `File vượt quá giới hạn cho phép (tối đa ${MAX_FILE_SIZE_MB}MB). Vui lòng chọn file nhỏ hơn.`
+        });
+      }
+      return res.status(400).json({ error: err.message || 'Lỗi khi tải file lên' });
+    }
+    next();
   });
+}
+
+app.post('/upload', requireAuth, handleUpload, (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Không có file nào được gửi lên' });
+
+  const bucket = getGridFSBucket();
+  const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(req.file.originalname);
+
+  // Ghi buffer vao GridFS: mo 1 upload stream, ket thuc se co _id cua file
+  const uploadStream = bucket.openUploadStream(req.file.originalname, {
+    contentType: req.file.mimetype,
+    metadata: { uploadedBy: req.user.username }
+  });
+
+  uploadStream.end(req.file.buffer);
+
+  uploadStream.on('error', (err) => {
+    console.error('Loi khi ghi file vao GridFS:', err);
+    res.status(500).json({ error: 'Loi khi luu file' });
+  });
+
+  uploadStream.on('finish', () => {
+    res.json({
+      url: `/files/${uploadStream.id}`, // duong dan de tai/xem lai file
+      name: req.file.originalname,
+      size: req.file.size,
+      isImage
+    });
+  });
+});
+
+// Doc lai file tu GridFS de hien thi/tai xuong (thay the cho express.static
+// vao thu muc uploads truoc day)
+app.get('/files/:id', async (req, res) => {
+  let fileId;
+  try {
+    fileId = new mongoose.Types.ObjectId(req.params.id);
+  } catch (err) {
+    return res.status(400).json({ error: 'ID file khong hop le' });
+  }
+
+  const bucket = getGridFSBucket();
+  const filesCursor = bucket.find({ _id: fileId });
+  const fileDoc = await filesCursor.next();
+
+  if (!fileDoc) return res.status(404).json({ error: 'Khong tim thay file' });
+
+  res.set('Content-Type', fileDoc.contentType || 'application/octet-stream');
+  res.set('Content-Disposition', `inline; filename="${encodeURIComponent(fileDoc.filename)}"`);
+
+  const downloadStream = bucket.openDownloadStream(fileId);
+  downloadStream.on('error', () => res.status(404).end());
+  downloadStream.pipe(res);
 });
 
 // Middleware bat loi tu Multer (vd file qua lon, sai dinh dang)
@@ -275,6 +363,41 @@ function broadcastOnlineUsers(room) {
   io.to(room).emit('online-users', getOnlineUsers(room));
 }
 
+// ---------- Direct Message (nhan tin rieng 1-1) helpers ----------
+// username -> Set<socket.id>  (theo doi TOAN CUC, khong theo phong, de gui DM
+// realtime toi dung nguoi nhan du ho dang o phong nao hoac chua vao phong nao)
+const onlineByUsername = new Map();
+
+function trackOnline(username, socketId) {
+  if (!onlineByUsername.has(username)) onlineByUsername.set(username, new Set());
+  onlineByUsername.get(username).add(socketId);
+}
+
+function untrackOnline(username, socketId) {
+  const set = onlineByUsername.get(username);
+  if (!set) return;
+  set.delete(socketId);
+  if (set.size === 0) onlineByUsername.delete(username);
+}
+
+function isUserOnline(username) {
+  return onlineByUsername.has(username);
+}
+
+// Dam bao conversationId luon giong nhau du ai nhan tin truoc: sap xep 2 ten
+// theo alphabet roi noi lai, vi du "alice::bob"
+function getConversationId(userA, userB) {
+  return [userA, userB].sort((a, b) => a.localeCompare(b)).join('::');
+}
+
+async function loadDMHistory(conversationId, limit = 50) {
+  const docs = await DirectMessage.find({ conversationId })
+    .sort({ time: -1 })
+    .limit(limit)
+    .lean();
+  return docs.reverse();
+}
+
 // ---------- Socket.io ----------
 // Moi ket noi socket bat buoc phai co JWT hop le (lay tu handshake.auth.token).
 // Neu khong co / het han / sai chu ky -> tu choi ket noi ngay tu dau.
@@ -292,6 +415,10 @@ io.use((socket, next) => {
 
 io.on('connection', socket => {
   socket.emit('room-list', getRoomList());
+
+  // Theo doi online theo username NGAY TU LUC KET NOI (khong doi den luc join
+  // phong) - de nhan tin rieng duoc voi nguoi chua vao phong nao ca.
+  trackOnline(socket.user.username, socket.id);
 
   socket.on('join', async ({ room }, ack) => {
     try {
@@ -400,6 +527,45 @@ io.on('connection', socket => {
     }
   });
 
+  // Xoa tin nhan (phong chat) - chi cho phep xoa tin nhan CUA CHINH MINH
+  socket.on('delete-message', async (messageId, ack) => {
+    try {
+      const user = users.get(socket.id);
+      if (!user) return;
+
+      let objectId;
+      try {
+        objectId = new mongoose.Types.ObjectId(messageId);
+      } catch (err) {
+        if (typeof ack === 'function') ack({ ok: false, error: 'ID tin nhan khong hop le' });
+        return;
+      }
+
+      const msg = await Message.findById(objectId);
+      if (!msg) {
+        if (typeof ack === 'function') ack({ ok: false, error: 'Tin nhan khong ton tai' });
+        return;
+      }
+      if (msg.username !== user.username) {
+        if (typeof ack === 'function') ack({ ok: false, error: 'Ban chi co the xoa tin nhan cua chinh minh' });
+        return;
+      }
+
+      // Neu la file, xoa luon file that trong GridFS de tranh rac du lieu
+      if (msg.type === 'file' && msg.url) {
+        await deleteFileFromUrl(msg.url);
+      }
+
+      await Message.deleteOne({ _id: objectId });
+
+      io.to(msg.room).emit('message-deleted', { id: String(objectId) });
+      if (typeof ack === 'function') ack({ ok: true });
+    } catch (err) {
+      console.error('Loi khi xoa tin nhan:', err);
+      if (typeof ack === 'function') ack({ ok: false, error: 'Loi server, thu lai sau' });
+    }
+  });
+
   socket.on('typing', isTyping => {
     const user = users.get(socket.id);
     if (!user) return;
@@ -428,7 +594,108 @@ io.on('connection', socket => {
     }
   });
 
+  // ---------- Direct Message (nhan tin rieng 1-1) ----------
+  socket.on('join-dm', async (otherUsername, ack) => {
+    try {
+      otherUsername = String(otherUsername || '').trim().slice(0, 30);
+      if (!otherUsername || otherUsername === socket.user.username) {
+        if (typeof ack === 'function') ack({ ok: false, error: 'Nguoi dung khong hop le' });
+        return;
+      }
+
+      const conversationId = getConversationId(socket.user.username, otherUsername);
+      socket.join(`dm:${conversationId}`);
+
+      const history = await loadDMHistory(conversationId);
+
+      if (typeof ack === 'function') {
+        ack({ ok: true, conversationId, otherUsername, history, online: isUserOnline(otherUsername) });
+      }
+    } catch (err) {
+      console.error('Loi khi mo DM:', err);
+      if (typeof ack === 'function') ack({ ok: false, error: 'Loi server, thu lai sau' });
+    }
+  });
+
+  socket.on('dm-message', async ({ to, text, type, url, name, size, isImage }, ack) => {
+    try {
+      to = String(to || '').trim().slice(0, 30);
+      if (!to || to === socket.user.username) return;
+
+      const conversationId = getConversationId(socket.user.username, to);
+      const msgType = type === 'file' ? 'file' : 'text';
+
+      if (msgType === 'text' && (!text || !text.trim())) return;
+
+      const doc = await DirectMessage.create({
+        conversationId,
+        from: socket.user.username,
+        to,
+        type: msgType,
+        text: msgType === 'text' ? text.trim().slice(0, 2000) : undefined,
+        url: msgType === 'file' ? url : undefined,
+        name: msgType === 'file' ? name : undefined,
+        size: msgType === 'file' ? size : undefined,
+        isImage: msgType === 'file' ? !!isImage : undefined,
+        time: Date.now()
+      });
+
+      // Gui toi TAT CA socket cua ca 2 nguoi dang mo phong DM nay (neu co)
+      io.to(`dm:${conversationId}`).emit('dm-message', doc.toObject());
+
+      // Du nguoi nhan CHUA mo phong DM (chi dang online noi khac), van bao
+      // cho ho biet co tin nhan moi de UI hien thong bao/dau cham do
+      const recipientSockets = onlineByUsername.get(to);
+      if (recipientSockets) {
+        recipientSockets.forEach(sid => {
+          io.to(sid).emit('dm-notify', { from: socket.user.username, text: doc.text || '[file]' });
+        });
+      }
+
+      if (typeof ack === 'function') ack({ ok: true });
+    } catch (err) {
+      console.error('Loi khi gui DM:', err);
+      if (typeof ack === 'function') ack({ ok: false, error: 'Loi server, thu lai sau' });
+    }
+  });
+
+  // Xoa tin nhan rieng - chi cho phep xoa tin nhan CUA CHINH MINH
+  socket.on('delete-dm-message', async (messageId, ack) => {
+    try {
+      let objectId;
+      try {
+        objectId = new mongoose.Types.ObjectId(messageId);
+      } catch (err) {
+        if (typeof ack === 'function') ack({ ok: false, error: 'ID tin nhan khong hop le' });
+        return;
+      }
+
+      const msg = await DirectMessage.findById(objectId);
+      if (!msg) {
+        if (typeof ack === 'function') ack({ ok: false, error: 'Tin nhan khong ton tai' });
+        return;
+      }
+      if (msg.from !== socket.user.username) {
+        if (typeof ack === 'function') ack({ ok: false, error: 'Ban chi co the xoa tin nhan cua chinh minh' });
+        return;
+      }
+
+      if (msg.type === 'file' && msg.url) {
+        await deleteFileFromUrl(msg.url);
+      }
+
+      await DirectMessage.deleteOne({ _id: objectId });
+
+      io.to(`dm:${msg.conversationId}`).emit('dm-message-deleted', { id: String(objectId) });
+      if (typeof ack === 'function') ack({ ok: true });
+    } catch (err) {
+      console.error('Loi khi xoa DM:', err);
+      if (typeof ack === 'function') ack({ ok: false, error: 'Loi server, thu lai sau' });
+    }
+  });
+
   socket.on('disconnect', () => {
+    untrackOnline(socket.user.username, socket.id);
     const user = users.get(socket.id);
     if (!user) return;
     leaveRoom(socket, user.room, user.username);
