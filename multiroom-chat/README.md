@@ -115,3 +115,37 @@ có MongoDB nào đang chạy ở địa chỉ trong `MONGODB_URI` — kiểm tr
 - Thêm mã hoá tin nhắn end-to-end.
 - Giới hạn kích thước/loại file chặt chẽ hơn, quét virus khi upload; hoặc chuyển file
   lên object storage (S3, GridFS) thay vì lưu trên đĩa server.
+
+
+## 6. Cấu trúc thư mục
+
+```text
+multiroom-chat/
+├── server.js                 # Chỉ còn ~55 dòng - lắp ráp app, khởi động server
+├── .env.example              # Mẫu biến môi trường (không chứa mật khẩu thực)
+├── config/
+│   └── env.js                # Toàn bộ biến môi trường, đọc 1 lần duy nhất
+├── db/
+│   ├── connection.js         # Kết nối cơ sở dữ liệu MongoDB
+│   └── models/               # 4 Mongoose models
+│       ├── User.js
+│       ├── Room.js
+│       ├── Message.js
+│       └── DirectMessage.js
+├── middleware/
+│   └── auth.js               # Middleware xác thực: requireAuth, verifyAuthHeader
+├── services/                 # Nghiệp vụ thuần, độc lập với Express/Socket.io
+│   ├── aiBot.js              # Xử lý gọi dịch vụ AI
+│   ├── gridfs.js             # Xử lý lưu trữ/xóa file
+│   ├── roomRepository.js     # Đọc/ghi lịch sử phòng chat
+│   ├── dmRepository.js       # Đọc/ghi tin nhắn riêng (Direct Message)
+│   └── presence.js           # Quản lý trạng thái online, vị trí phòng trong RAM
+├── routes/                   # Các tuyến REST API theo từng nhóm chức năng
+│   ├── pages.routes.js
+│   ├── config.routes.js
+│   ├── auth.routes.js
+│   └── upload.routes.js
+└── sockets/                  # Toàn bộ logic Socket.io được tách biệt
+    ├── index.js              # Socket auth middleware và lắp ráp các event handlers
+    ├── roomHandlers.js       # Xử lý sự kiện phòng chat
+    └── dmHandlers.js         # Xử lý sự kiện tin nhắn riêng
