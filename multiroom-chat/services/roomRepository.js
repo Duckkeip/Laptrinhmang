@@ -13,7 +13,9 @@ function toClientMessage(doc) {
     name: doc.name,
     size: doc.size,
     isImage: doc.isImage,
-    time: doc.time
+    time: doc.time,
+    edited: doc.edited ?? false,
+    editedAt: doc.editedAt ?? null
   };
 }
 

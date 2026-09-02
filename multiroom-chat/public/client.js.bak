@@ -180,25 +180,8 @@
       meta.appendChild(uname);
       meta.appendChild(time);
 
-      // Chi cho phep xoa/sua tin nhan CUA CHINH MINH (khong xoa/sua duoc tin AI Bot/nguoi khac)
+      // Chi cho phep xoa tin nhan CUA CHINH MINH (khong xoa duoc tin AI Bot/nguoi khac)
       if (isMe && msg.id) {
-        // Nút sửa tin nhắn
-        const editBtn = document.createElement('button');
-        editBtn.className = 'msg-edit-btn';
-        editBtn.title = 'Sửa tin nhắn';
-        editBtn.type = 'button';
-        editBtn.textContent = '✏️';
-        editBtn.addEventListener('click', () => {
-          const newText = prompt('Sửa tin nhắn:', msg.text);
-          if (newText !== null && newText.trim() !== '') {
-            socket.emit('edit-message', { messageId: msg.id, text: newText.trim() }, res => {
-              if (!res || !res.ok) alert(res?.error || 'Không thể sửa tin nhắn');
-            });
-          }
-        });
-        meta.appendChild(editBtn);
-
-        // Nút xóa tin nhắn
         const delBtn = document.createElement('button');
         delBtn.className = 'msg-delete-btn';
         delBtn.title = 'Xóa tin nhắn';

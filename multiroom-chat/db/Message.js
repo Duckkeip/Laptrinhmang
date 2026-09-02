@@ -15,6 +15,10 @@ const messageSchema = new mongoose.Schema(
     size: Number,
     isImage: Boolean,
 
+    // Edit tracking
+    edited: { type: Boolean, default: false },
+    editedAt: { type: Date },
+
     time: { type: Number, required: true, index: true }
   },
   { versionKey: false }

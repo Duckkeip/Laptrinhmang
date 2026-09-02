@@ -205,60 +205,6 @@ function registerRoomHandlers(io, socket) {
     }
   });
 
-  socket.on('edit-message', async ({ messageId, text }, ack) => {
-    try {
-      const user = presence.users.get(socket.id);
-      if (!user) return;
-
-      if (!text || !text.trim()) {
-        if (typeof ack === 'function') ack({ ok: false, error: 'Nội dung tin nhắn không được để trống' });
-        return;
-      }
-
-      let objectId;
-      try {
-        objectId = new mongoose.Types.ObjectId(messageId);
-      } catch (err) {
-        if (typeof ack === 'function') ack({ ok: false, error: 'ID tin nhắn không hợp lệ' });
-        return;
-      }
-
-      const msg = await Message.findById(objectId);
-      if (!msg) {
-        if (typeof ack === 'function') ack({ ok: false, error: 'Tin nhắn không tồn tại' });
-        return;
-      }
-
-      // Kiểm tra quyền: chỉ cho phép sửa tin nhắn của chính mình
-      if (msg.username !== user.username) {
-        if (typeof ack === 'function') ack({ ok: false, error: 'Bạn chỉ có thể sửa tin nhắn của chính mình' });
-        return;
-      }
-
-      // Kiểm tra thời gian: chỉ cho phép sửa trong vòng 5 phút (300,000 ms)
-      const now = Date.now();
-      if (now - msg.time > 5 * 60 * 1000) {
-        if (typeof ack === 'function') ack({ ok: false, error: 'Chỉ có thể sửa tin nhắn trong vòng 5 phút sau khi gửi' });
-        return;
-      }
-
-      // Cập nhật tin nhắn
-      msg.text = text.trim().slice(0, 2000);
-      msg.edited = true;
-      msg.editedAt = now;
-      await msg.save();
-
-      // Gửi tin nhắn đã sửa tới tất cả người dùng trong phòng
-      const updatedMsg = toClientMessage(msg);
-      io.to(msg.room).emit('message-updated', updatedMsg);
-
-      if (typeof ack === 'function') ack({ ok: true });
-    } catch (err) {
-      console.error('Lỗi khi sửa tin nhắn:', err);
-      if (typeof ack === 'function') ack({ ok: false, error: 'Lỗi server, thử lại sau' });
-    }
-  });
-
   socket.on('disconnect', () => {
     const user = presence.users.get(socket.id);
     if (!user) return;
