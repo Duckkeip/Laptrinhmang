@@ -7,6 +7,8 @@
   let me = { username: '', room: '' };
   let typingTimeout = null;
   let socket = null;
+  let editMessageId = null;
+  let editMessageText = '';
 
   // Global Helpers
   function initials(name) {
@@ -128,6 +130,13 @@
     const fileInput = document.getElementById('file-input');
     const uploadStatus = document.getElementById('upload-status');
 
+    // Edit message modal refs
+    const editMessageModal = document.getElementById('edit-message-modal');
+    const editMessageInput = document.getElementById('edit-message-input');
+    const editMessageCloseBtn = document.getElementById('edit-message-close-btn');
+    const editMessageCancelBtn = document.getElementById('edit-message-cancel-btn');
+    const editMessageSaveBtn = document.getElementById('edit-message-save-btn');
+
     // Lay gioi han dung luong file tu server (tranh go cung 1 con so o 2 noi)
     let maxFileSizeMB = 15; // gia tri du phong, se duoc ghi de ngay khi fetch xong
     fetch('/api/config')
@@ -189,12 +198,10 @@
         editBtn.type = 'button';
         editBtn.textContent = '✏️';
         editBtn.addEventListener('click', () => {
-          const newText = prompt('Sửa tin nhắn:', msg.text);
-          if (newText !== null && newText.trim() !== '') {
-            socket.emit('edit-message', { messageId: msg.id, text: newText.trim() }, res => {
-              if (!res || !res.ok) alert(res?.error || 'Không thể sửa tin nhắn');
-            });
-          }
+          editMessageId = msg.id;
+          editMessageInput.value = msg.text;
+          editMessageModal.classList.remove('hidden');
+          editMessageInput.focus();
         });
         meta.appendChild(editBtn);
 
@@ -549,6 +556,64 @@
       dmToast.onclick = () => { openDM(from); dmToast.classList.add('hidden'); };
       clearTimeout(dmToastTimer);
       dmToastTimer = setTimeout(() => dmToast.classList.add('hidden'), 5000);
+    });
+
+    // Edit message modal events
+    editMessageCloseBtn.addEventListener('click', () => {
+      editMessageModal.classList.add('hidden');
+      editMessageInput.value = '';
+      editMessageId = null;
+    });
+
+    editMessageCancelBtn.addEventListener('click', () => {
+      editMessageModal.classList.add('hidden');
+      editMessageInput.value = '';
+      editMessageId = null;
+    });
+
+    editMessageSaveBtn.addEventListener('click', () => {
+      const newText = editMessageInput.value.trim();
+      if (newText && editMessageId) {
+        socket.emit('edit-message', { messageId: editMessageId, text: newText }, res => {
+          if (!res || !res.ok) {
+            alert(res?.error || 'Không thể sửa tin nhắn');
+          }
+          editMessageModal.classList.add('hidden');
+          editMessageInput.value = '';
+          editMessageId = null;
+        });
+      }
+    });
+
+    // Handle message updated from server (for edit-message)
+    socket.on('message-updated', (msg) => {
+      const el = messagesEl.querySelector(`[data-id="${msg.id}"]`);
+      if (el) {
+        // Update the text of the message bubble
+        const bubble = el.querySelector('.msg-bubble');
+        if (bubble) {
+          bubble.textContent = msg.text;
+        }
+
+        // Update the edited indicator in the meta
+        const meta = el.querySelector('.msg-meta');
+        if (meta) {
+          // Remove any existing edited indicator
+          const existingEdited = meta.querySelector('.msg-edited');
+          if (existingEdited) {
+            existingEdited.remove();
+          }
+          if (msg.edited) {
+            const editedSpan = document.createElement('span');
+            editedSpan.className = 'msg-edited';
+            editedSpan.textContent = '(đã chỉnh sửa)';
+            editedSpan.style.fontSize = '0.75em';
+            editedSpan.style.color = 'var(--text-3)';
+            editedSpan.style.marginLeft = '6px';
+            meta.appendChild(editedSpan);
+          }
+        }
+      }
     });
   }
 })();

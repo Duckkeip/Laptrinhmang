@@ -724,3 +724,100 @@ html, body {
   width: 100%;
 }
 
+/* ---------- Modal sua tin nhan ---------- */
+.edit-message-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 24, 36, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.edit-message-modal.hidden { display: none !important; }
+
+.edit-message-panel {
+  width: 420px;
+  max-width: 92vw;
+  max-height: 86vh;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: 0 20px 50px rgba(20, 24, 36, 0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.edit-message-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.edit-message-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.edit-message-body {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.edit-message-body textarea {
+  width: 100%;
+  height: 100%;
+  resize: none;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.edit-message-body textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.edit-message-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.btn-secondary {
+  padding: 11px 22px;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.btn-secondary:hover { opacity: 0.9; }
+.btn-secondary:active { opacity: 0.8; }
+
+/* ---------- Edited message indicator ---------- */
+.msg-edited {
+  font-size: 0.75em;
+  color: var(--text-3);
+  margin-left: 6px;
+}
+
